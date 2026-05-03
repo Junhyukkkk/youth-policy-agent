@@ -186,7 +186,7 @@ class PolicyAgent:
                 )
 
         last = messages[-1]
-        answer = last.content if isinstance(last, AIMessage) else ""
+        answer = getattr(last, "content", "") or ""
         if not answer:
             answer = "확인된 정보 없음"
 
