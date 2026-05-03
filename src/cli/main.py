@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from rich.console import Console
+from rich.markdown import Markdown
 
 from src.rag.ingest import ingest_directory
 
@@ -62,6 +63,32 @@ def cmd_test_mcp(args: argparse.Namespace) -> None:
     asyncio.run(_run_test_mcp(args))
 
 
+def cmd_ask(args: argparse.Namespace) -> None:
+    from src.agent.orchestrator import PolicyAgent
+
+    query: str = args.query
+    console.print(f"\n[bold]질문:[/bold] {query}\n")
+
+    with console.status("[bold cyan]답변 생성 중...[/bold cyan]", spinner="dots"):
+        agent = PolicyAgent()
+        resp = agent.ask(query)
+
+    # 사용된 Tool 표시
+    if resp.tools_used:
+        tool_display = " → ".join(resp.tools_used)
+        console.print(f"[dim]사용된 Tool: {tool_display}[/dim]")
+    console.rule()
+
+    # 답변 출력
+    console.print(Markdown(resp.answer))
+
+    # RAG 출처 표시
+    if resp.sources:
+        console.rule("[dim]출처[/dim]")
+        for src in resp.sources:
+            console.print(f"[dim]• {src}[/dim]")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="policy-agent", description="청년 정책 에이전트 CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -70,6 +97,11 @@ def main() -> None:
     ingest_parser = subparsers.add_parser("ingest", help="PDF를 Pinecone에 적재")
     ingest_parser.add_argument("--path", required=True, help="PDF 디렉토리 경로")
     ingest_parser.set_defaults(func=cmd_ingest)
+
+    # ask 서브커맨드
+    ask_parser = subparsers.add_parser("ask", help="청년 정책 질문 (RAG + MCP 자동 라우팅)")
+    ask_parser.add_argument("query", help="질문 내용 (예: '서울 청년 월세 지원 자격')")
+    ask_parser.set_defaults(func=cmd_ask)
 
     # test-mcp 서브커맨드
     mcp_parser = subparsers.add_parser("test-mcp", help="MCP Tool 단독 테스트 (LLM 없이)")
