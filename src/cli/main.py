@@ -5,10 +5,47 @@ from pathlib import Path
 
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.markup import escape
+from rich.panel import Panel
 
 from src.rag.ingest import ingest_directory
 
 console = Console(highlight=False)
+
+_MCP_TOOL_NAMES = {"get_policy_list", "get_policy_detail"}
+
+_BADGE_RAG = f"[bold green]{escape('[RAG]')}[/bold green]"
+_BADGE_MCP = f"[bold cyan]{escape('[MCP]')}[/bold cyan]"
+_BADGE_FALLBACK = f"[bold yellow]{escape('[RAG-FALLBACK]')}[/bold yellow]"
+
+
+def _build_badge_line(tools_used: list[str], fallback_used: bool) -> str:
+    parts: list[str] = []
+    has_mcp = any(t in _MCP_TOOL_NAMES for t in tools_used)
+    has_rag = "rag_search" in tools_used
+
+    if fallback_used:
+        parts.append(_BADGE_FALLBACK)
+    else:
+        if has_mcp:
+            parts.append(_BADGE_MCP)
+        if has_rag:
+            parts.append(_BADGE_RAG)
+
+    return "  ".join(parts)
+
+
+def _print_sources_panel(
+    sources: list[str], tools_used: list[str], fallback_used: bool
+) -> None:
+    lines: list[str] = []
+    for src in sources:
+        lines.append(f"• {src}")
+    if any(t in _MCP_TOOL_NAMES for t in tools_used) and not fallback_used:
+        lines.append("• 온통청년 API (실시간 조회)")
+
+    content = "\n".join(lines) if lines else "출처 정보 없음"
+    console.print(Panel(content, title="[dim]출처[/dim]", border_style="dim"))
 
 
 def cmd_ingest(args: argparse.Namespace) -> None:
@@ -73,37 +110,36 @@ def cmd_ask(args: argparse.Namespace) -> None:
         agent = PolicyAgent()
         resp = agent.ask(query)
 
-    # 사용된 Tool 표시
-    if resp.tools_used:
-        tool_display = " → ".join(resp.tools_used)
-        console.print(f"[dim]사용된 Tool: {tool_display}[/dim]")
+    # 뱃지
+    badge_line = _build_badge_line(resp.tools_used, resp.fallback_used)
+    if badge_line:
+        console.print(badge_line)
+
     console.rule()
 
-    # 답변 출력
+    # 답변 본문
     console.print(Markdown(resp.answer))
 
-    # RAG 출처 표시
-    if resp.sources:
-        console.rule("[dim]출처[/dim]")
-        for src in resp.sources:
-            console.print(f"[dim]• {src}[/dim]")
+    # 출처 Panel
+    has_sources = resp.sources or (
+        any(t in _MCP_TOOL_NAMES for t in resp.tools_used) and not resp.fallback_used
+    )
+    if has_sources:
+        _print_sources_panel(resp.sources, resp.tools_used, resp.fallback_used)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="policy-agent", description="청년 정책 에이전트 CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # ingest 서브커맨드
     ingest_parser = subparsers.add_parser("ingest", help="PDF를 Pinecone에 적재")
     ingest_parser.add_argument("--path", required=True, help="PDF 디렉토리 경로")
     ingest_parser.set_defaults(func=cmd_ingest)
 
-    # ask 서브커맨드
     ask_parser = subparsers.add_parser("ask", help="청년 정책 질문 (RAG + MCP 자동 라우팅)")
     ask_parser.add_argument("query", help="질문 내용 (예: '서울 청년 월세 지원 자격')")
     ask_parser.set_defaults(func=cmd_ask)
 
-    # test-mcp 서브커맨드
     mcp_parser = subparsers.add_parser("test-mcp", help="MCP Tool 단독 테스트 (LLM 없이)")
     mcp_parser.add_argument("--tool", required=True, choices=["get_policy_list", "get_policy_detail"])
     mcp_parser.add_argument("--region", default="", help="지역 코드 (예: 003002001)")
