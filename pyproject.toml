@@ -26,6 +26,9 @@ pytest = "^8.0"
 ruff = "^0.6"
 mypy = "^1.11"
 
+[tool.poetry.scripts]
+policy-agent = "src.cli.main:main"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
