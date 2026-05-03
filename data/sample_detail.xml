@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<youthPolicyDetail>
+  <youthPolicy>
+    <bizId>R2024010400002</bizId>
+    <plcyNm>청년 주거 안정 월세 지원</plcyNm>
+    <plcyExpl>무주택 청년에게 월 최대 20만 원 월세를 최대 12개월 지원합니다.</plcyExpl>
+    <plcyKywrd>월세,주거,청년</plcyKywrd>
+    <bizTyNm>주거</bizTyNm>
+    <cnsgNmor>국토교통부</cnsgNmor>
+    <sporCn>월세 보조금 월 최대 20만 원, 최대 12개월</sporCn>
+    <aplcnTrget>만 19~34세 무주택 청년, 기준 중위소득 60% 이하</aplcnTrget>
+    <rqutPrdCn>2024.03.01 ~ 2024.12.31 (예산 소진 시 조기 마감)</rqutPrdCn>
+    <rqutUrla>https://www.lh.or.kr</rqutUrla>
+    <ageInfo>만 19세 ~ 34세</ageInfo>
+    <empmSttsCd>재직자,구직자</empmSttsCd>
+    <mrgInfo>무관</mrgInfo>
+    <eduRfnCd>무관</eduRfnCd>
+    <majrCd></majrCd>
+    <splfCd></splfCd>
+    <emplSttsCd>재직자,구직자,자영업자</emplSttsCd>
+    <prcptnLimit>기준 중위소득 60% 이하</prcptnLimit>
+    <rstdArea>전국</rstdArea>
+  </youthPolicy>
+</youthPolicyDetail>

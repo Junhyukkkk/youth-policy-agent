@@ -168,7 +168,7 @@ class YouthPolicyClient:
         if category:
             params["bizTycdSel"] = category
         if keyword:
-            params["srchPolyBizSecd"] = keyword
+            params["query"] = keyword
 
         try:
             resp = await self._client.get("/youthPlcyList.do", params=params)

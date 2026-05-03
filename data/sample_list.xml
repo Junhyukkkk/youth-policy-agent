@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<youthPolicyList>
+  <totCount>2</totCount>
+  <pageIndex>1</pageIndex>
+  <youthPolicy>
+    <bizId>R2024010400002</bizId>
+    <plcyNm>청년 주거 안정 월세 지원</plcyNm>
+    <plcyExpl>무주택 청년에게 월 최대 20만 원 월세를 최대 12개월 지원합니다.</plcyExpl>
+    <plcyKywrd>월세,주거,청년</plcyKywrd>
+    <bizTyNm>주거</bizTyNm>
+    <polyBizSecd>023020</polyBizSecd>
+    <cnsgNmor>국토교통부</cnsgNmor>
+    <ageInfo>만 19세 ~ 34세</ageInfo>
+    <empmSttsCd>재직자,구직자</empmSttsCd>
+    <sporCn>월세 보조금 월 최대 20만 원, 최대 12개월</sporCn>
+  </youthPolicy>
+  <youthPolicy>
+    <bizId>R2024020100015</bizId>
+    <plcyNm>청년도약계좌</plcyNm>
+    <plcyExpl>청년이 매월 70만 원 한도로 납입하면 정부 기여금과 비과세 혜택을 제공하는 저축 상품입니다.</plcyExpl>
+    <plcyKywrd>저축,금융,청년도약</plcyKywrd>
+    <bizTyNm>금융</bizTyNm>
+    <polyBizSecd>023050</polyBizSecd>
+    <cnsgNmor>금융위원회</cnsgNmor>
+    <ageInfo>만 19세 ~ 34세</ageInfo>
+    <empmSttsCd>재직자</empmSttsCd>
+    <sporCn>정부 기여금 월 최대 2.4만 원 + 비과세 혜택</sporCn>
+  </youthPolicy>
+</youthPolicyList>
