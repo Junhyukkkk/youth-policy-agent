@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass, field
 
 from langchain_core.messages import (
@@ -36,6 +37,9 @@ _FALLBACK_PREFIX = (
     "답변 시작 부분에 '⚠️ 실시간 정보 조회에 실패하여 기존 자료 기반으로 답변합니다.'를 반드시 명시하세요.\n\n"
 )
 
+# 2자리 이상 숫자 패턴 (환각 감지용)
+_NUM_PATTERN = re.compile(r"\d{2,}")
+
 
 # ---------------------------------------------------------------------------
 # 응답 구조체
@@ -48,6 +52,19 @@ class AgentResponse:
     sources: list[str] = field(default_factory=list)
     tools_used: list[str] = field(default_factory=list)
     fallback_used: bool = False
+    hallucination_warning: bool = False
+
+
+def _check_hallucination(answer: str, source_texts: list[str], query: str = "") -> bool:
+    """답변에 출처·질문 어디에도 없는 2자리 이상 숫자가 있으면 True를 반환한다."""
+    if not source_texts:
+        return False
+    combined = " ".join(source_texts) + " " + query
+    for num in set(_NUM_PATTERN.findall(answer)):
+        if num not in combined:
+            logger.debug("[hallucination] 출처 미확인 숫자: %s", num)
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -159,6 +176,7 @@ class PolicyAgent:
         ]
         tools_used: list[str] = []
         sources: list[str] = []
+        tool_results: list[str] = []
         fallback_used: bool = False
 
         for _ in range(_MAX_ITER):
@@ -203,6 +221,7 @@ class PolicyAgent:
                         if line.startswith("[출처:"):
                             sources.append(line.strip("[]").replace("출처: ", ""))
 
+                tool_results.append(str(result))
                 tool_content = (
                     _FALLBACK_PREFIX + result if mcp_failed else str(result)
                 )
@@ -215,11 +234,16 @@ class PolicyAgent:
         if not answer:
             answer = "확인된 정보 없음"
 
+        hallucination_warning = _check_hallucination(answer, tool_results, query)
+        if hallucination_warning:
+            logger.warning("[hallucination] 출처 미확인 숫자가 답변에 포함됨")
+
         return AgentResponse(
             answer=answer,
             sources=sources,
             tools_used=tools_used,
             fallback_used=fallback_used,
+            hallucination_warning=hallucination_warning,
         )
 
     @staticmethod

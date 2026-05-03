@@ -127,6 +127,17 @@ def cmd_ask(args: argparse.Namespace) -> None:
     if has_sources:
         _print_sources_panel(resp.sources, resp.tools_used, resp.fallback_used)
 
+    # 환각 경고
+    if resp.hallucination_warning:
+        console.print(
+            Panel(
+                "답변에 출처에서 확인되지 않은 숫자가 포함되어 있을 수 있습니다.\n"
+                "중요한 수치(금액·날짜·자격 연령 등)는 원문을 직접 확인하세요.",
+                title="[bold red]⚠ 수치 검증 필요[/bold red]",
+                border_style="red",
+            )
+        )
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="policy-agent", description="청년 정책 에이전트 CLI")
