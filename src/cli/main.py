@@ -48,6 +48,32 @@ def _print_sources_panel(
     console.print(Panel(content, title="[dim]출처[/dim]", border_style="dim"))
 
 
+def _display_response(resp) -> None:  # type: ignore[no-untyped-def]
+    """AgentResponse를 Rich로 출력한다."""
+    badge_line = _build_badge_line(resp.tools_used, resp.fallback_used)
+    if badge_line:
+        console.print(badge_line)
+
+    console.rule()
+    console.print(Markdown(resp.answer))
+
+    has_sources = resp.sources or (
+        any(t in _MCP_TOOL_NAMES for t in resp.tools_used) and not resp.fallback_used
+    )
+    if has_sources:
+        _print_sources_panel(resp.sources, resp.tools_used, resp.fallback_used)
+
+    if resp.hallucination_warning:
+        console.print(
+            Panel(
+                "답변에 출처에서 확인되지 않은 숫자가 포함되어 있을 수 있습니다.\n"
+                "중요한 수치(금액·날짜·자격 연령 등)는 원문을 직접 확인하세요.",
+                title="[bold red]⚠ 수치 검증 필요[/bold red]",
+                border_style="red",
+            )
+        )
+
+
 def cmd_ingest(args: argparse.Namespace) -> None:
     path = Path(args.path)
     if not path.exists():
@@ -110,44 +136,55 @@ def cmd_ask(args: argparse.Namespace) -> None:
         agent = PolicyAgent()
         resp = agent.ask(query)
 
-    # 뱃지
-    badge_line = _build_badge_line(resp.tools_used, resp.fallback_used)
-    if badge_line:
-        console.print(badge_line)
+    _display_response(resp)
 
-    console.rule()
 
-    # 답변 본문
-    console.print(Markdown(resp.answer))
+def cmd_chat(_args: argparse.Namespace | None = None) -> None:
+    from src.agent.orchestrator import PolicyAgent
 
-    # 출처 Panel
-    has_sources = resp.sources or (
-        any(t in _MCP_TOOL_NAMES for t in resp.tools_used) and not resp.fallback_used
-    )
-    if has_sources:
-        _print_sources_panel(resp.sources, resp.tools_used, resp.fallback_used)
-
-    # 환각 경고
-    if resp.hallucination_warning:
-        console.print(
-            Panel(
-                "답변에 출처에서 확인되지 않은 숫자가 포함되어 있을 수 있습니다.\n"
-                "중요한 수치(금액·날짜·자격 연령 등)는 원문을 직접 확인하세요.",
-                title="[bold red]⚠ 수치 검증 필요[/bold red]",
-                border_style="red",
-            )
+    console.print(
+        Panel(
+            "[bold]청년 정책 에이전트[/bold]\n"
+            "[dim]자격조건·신청방법은 RAG, 실시간 공고는 MCP로 자동 라우팅됩니다.[/dim]\n"
+            "[dim]종료: exit / quit / Ctrl+C[/dim]",
+            border_style="cyan",
         )
+    )
+
+    agent = PolicyAgent()
+
+    while True:
+        try:
+            query = console.input("\n[bold cyan]질문>[/bold cyan] ").strip()
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[dim]종료합니다.[/dim]")
+            break
+
+        if not query:
+            continue
+        if query.lower() in ("exit", "quit", "q"):
+            console.print("[dim]종료합니다.[/dim]")
+            break
+
+        try:
+            with console.status("[bold cyan]답변 생성 중...[/bold cyan]", spinner="dots"):
+                resp = agent.ask(query)
+            _display_response(resp)
+        except Exception as exc:
+            console.print(f"[red]오류:[/red] {exc}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="policy-agent", description="청년 정책 에이전트 CLI")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command", required=False)
+
+    subparsers.add_parser("chat", help="대화형 채팅 모드 (기본값)").set_defaults(func=cmd_chat)
 
     ingest_parser = subparsers.add_parser("ingest", help="PDF를 Pinecone에 적재")
     ingest_parser.add_argument("--path", required=True, help="PDF 디렉토리 경로")
     ingest_parser.set_defaults(func=cmd_ingest)
 
-    ask_parser = subparsers.add_parser("ask", help="청년 정책 질문 (RAG + MCP 자동 라우팅)")
+    ask_parser = subparsers.add_parser("ask", help="단발성 질문")
     ask_parser.add_argument("query", help="질문 내용 (예: '서울 청년 월세 지원 자격')")
     ask_parser.set_defaults(func=cmd_ask)
 
@@ -162,7 +199,10 @@ def main() -> None:
     mcp_parser.set_defaults(func=cmd_test_mcp)
 
     args = parser.parse_args()
-    args.func(args)
+
+    # 서브커맨드 없이 실행하면 채팅 모드
+    func = getattr(args, "func", cmd_chat)
+    func(args)
 
 
 if __name__ == "__main__":
