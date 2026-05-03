@@ -1,0 +1,48 @@
+cat > .gitignore << 'EOF'
+# 환경변수 (절대 커밋 금지)
+.env
+.env.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+
+# Poetry
+poetry.lock
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 정책 PDF (개인 데이터)
+data/policies/*.pdf
+
+# 로그
+*.log
+logs/
+
+# 테스트/캐시
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Pinecone 로컬 캐시
+.pinecone/
+EOF
+
+docs
