@@ -2,6 +2,7 @@
 
 LLM에 rag_search / get_policy_list / get_policy_detail 세 도구를 바인딩하고,
 쿼리 성격에 따라 LLM이 적절한 도구를 선택·실행한 뒤 자연어 답변을 생성한다.
+MCP 도구 실패 시 RAG fallback으로 전환한다.
 """
 from __future__ import annotations
 
@@ -28,6 +29,12 @@ from src.rag.retriever import retrieve
 logger = logging.getLogger(__name__)
 
 _MAX_ITER = 5
+_MCP_TOOLS = {"get_policy_list", "get_policy_detail"}
+
+_FALLBACK_PREFIX = (
+    "⚠️ 실시간 API 호출 실패 — RAG 기반 정보로 대체합니다.\n"
+    "답변 시작 부분에 '⚠️ 실시간 정보 조회에 실패하여 기존 자료 기반으로 답변합니다.'를 반드시 명시하세요.\n\n"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -40,6 +47,7 @@ class AgentResponse:
     answer: str
     sources: list[str] = field(default_factory=list)
     tools_used: list[str] = field(default_factory=list)
+    fallback_used: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -151,9 +159,11 @@ class PolicyAgent:
         ]
         tools_used: list[str] = []
         sources: list[str] = []
+        fallback_used: bool = False
 
         for _ in range(_MAX_ITER):
             response: AIMessage = self._llm_with_tools.invoke(messages)
+            logger.debug("[llm-response] tool_calls=%s", response.tool_calls)
             messages.append(response)
 
             if not response.tool_calls:
@@ -168,21 +178,36 @@ class PolicyAgent:
                 tool_fn = _TOOLS_BY_NAME.get(name)
                 if tool_fn is None:
                     result: str = f"알 수 없는 tool: {name}"
+                    mcp_failed = False
                 else:
                     try:
                         result = tool_fn.invoke(args)  # type: ignore[union-attr]
+                        mcp_failed = False
                     except Exception as exc:
-                        result = f"Tool 오류: {exc}"
                         logger.warning("[tool-error] %s: %s", name, exc)
+                        if name in _MCP_TOOLS:
+                            result = self._rag_fallback(query, args)
+                            tools_used.append("rag_search")
+                            fallback_used = True
+                            mcp_failed = True
+                            logger.info(
+                                "[mcp-fallback] %s 실패 → RAG fallback 실행", name
+                            )
+                        else:
+                            result = f"Tool 오류: {exc}"
+                            mcp_failed = False
 
-                # RAG 결과에서 출처 태그 추출
-                if name == "rag_search" and isinstance(result, str):
+                # 출처 추출 (rag_search 직접 호출 또는 fallback 결과)
+                if (name == "rag_search" or mcp_failed) and isinstance(result, str):
                     for line in result.splitlines():
                         if line.startswith("[출처:"):
                             sources.append(line.strip("[]").replace("출처: ", ""))
 
+                tool_content = (
+                    _FALLBACK_PREFIX + result if mcp_failed else str(result)
+                )
                 messages.append(
-                    ToolMessage(content=str(result), tool_call_id=tc["id"])
+                    ToolMessage(content=tool_content, tool_call_id=tc["id"])
                 )
 
         last = messages[-1]
@@ -190,4 +215,23 @@ class PolicyAgent:
         if not answer:
             answer = "확인된 정보 없음"
 
-        return AgentResponse(answer=answer, sources=sources, tools_used=tools_used)
+        return AgentResponse(
+            answer=answer,
+            sources=sources,
+            tools_used=tools_used,
+            fallback_used=fallback_used,
+        )
+
+    @staticmethod
+    def _rag_fallback(query: str, failed_args: dict) -> str:
+        """MCP 실패 시 RAG로 대체 검색한다."""
+        fallback_query = (
+            failed_args.get("keyword")
+            or failed_args.get("policy_name")
+            or query
+        )
+        try:
+            return rag_search.invoke({"query": fallback_query})  # type: ignore[return-value]
+        except Exception as exc:
+            logger.error("[rag-fallback-error] %s", exc)
+            return "RAG 조회도 실패했습니다. 잠시 후 다시 시도해 주세요."
