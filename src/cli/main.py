@@ -4,11 +4,10 @@ import json
 from pathlib import Path
 
 from rich.console import Console
-from rich.pretty import pprint
 
 from src.rag.ingest import ingest_directory
 
-console = Console()
+console = Console(highlight=False)
 
 
 def cmd_ingest(args: argparse.Namespace) -> None:
@@ -36,12 +35,12 @@ async def _run_test_mcp(args: argparse.Namespace) -> None:
         if args.keyword:
             arguments["keyword"] = args.keyword
         arguments["page"] = args.page
-        arguments["display"] = args.display
+        arguments["page_size"] = args.display
     elif tool_name == "get_policy_detail":
         if not args.policy_id:
             console.print("[red]--policy-id 가 필요합니다.[/red]")
             raise SystemExit(1)
-        arguments["policy_id"] = args.policy_id
+        arguments["policy_no"] = args.policy_id
     else:
         console.print(f"[red]알 수 없는 tool: {tool_name}[/red]")
         raise SystemExit(1)
@@ -53,7 +52,7 @@ async def _run_test_mcp(args: argparse.Namespace) -> None:
     try:
         results = await call_tool(tool_name, arguments)
         for content in results:
-            console.print(content.text)
+            print(content.text)
     except RuntimeError as e:
         console.print(f"[red]오류:[/red] {e}")
         raise SystemExit(1)
