@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     pinecone_index_name: str = "youth-policy-index"
     youth_policy_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
+    chunk_size: int = 1000
+    chunk_overlap: int = 150
 
 
 settings = Settings()
