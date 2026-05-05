@@ -19,12 +19,12 @@ from typing import NamedTuple
 
 import pdfplumber
 from langchain_core.documents import Document
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from rich.console import Console
 from rich.progress import track
 
 from src.config import settings
+from src.rag.embeddings import GeminiEmbeddings
 from src.rag.splitter import get_splitter
 
 # Rich 콘솔 객체 — print 대신 컬러/아이콘 있는 출력을 위해 사용
@@ -143,12 +143,9 @@ def ingest_directory(path: Path) -> tuple[int, int]:
         return 0, 0
 
     # ── Gemini 임베딩 모델 초기화 ──────────────────────────────────
-    # 텍스트 → 768차원 숫자 벡터로 변환해주는 모델
-    # "embedding-001"은 Gemini의 텍스트 임베딩 전용 모델
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
-        google_api_key=settings.google_api_key,
-    )
+    # google-genai SDK (v1 API) 기반 커스텀 클래스 사용
+    # langchain-google-genai의 GoogleGenerativeAIEmbeddings는 v1beta를 써서 404 에러 발생
+    embeddings = GeminiEmbeddings()
 
     # ── 기존 Pinecone 인덱스에 연결 ────────────────────────────────
     # 인덱스는 Pinecone 콘솔에서 미리 만들어 둬야 한다.

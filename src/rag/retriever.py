@@ -15,19 +15,15 @@
 
 from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStoreRetriever
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 
 from src.config import settings
+from src.rag.embeddings import GeminiEmbeddings
 
 
 def _get_vectorstore() -> PineconeVectorStore:
-    # Gemini 임베딩 모델: 검색 시에도 ingest 때와 동일한 모델로 벡터를 만들어야 한다.
-    # (다른 모델을 쓰면 벡터 공간이 달라져서 유사도 검색이 엉망이 됨)
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
-        google_api_key=settings.google_api_key,
-    )
+    # ingest 때와 동일한 모델·클래스를 써야 벡터 공간이 일치해서 유사도 검색이 정확하다.
+    embeddings = GeminiEmbeddings()
     # 이미 존재하는 Pinecone 인덱스에 연결 (ingest.py가 미리 데이터를 넣어둔 인덱스)
     return PineconeVectorStore.from_existing_index(
         index_name=settings.pinecone_index_name,
