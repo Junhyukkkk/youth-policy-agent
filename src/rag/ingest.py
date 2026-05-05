@@ -17,7 +17,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import NamedTuple
 
-from langchain_community.document_loaders import PyPDFLoader
+import pdfplumber
 from langchain_core.documents import Document
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
@@ -62,24 +62,57 @@ def _safe_id(text: str) -> str:
 
 # ── PDF 로딩 ──────────────────────────────────────────────────────────
 
+def _table_to_text(table: list[list]) -> str:
+    """pdfplumber 표 데이터를 읽기 쉬운 텍스트로 변환.
+
+    예: [["소득분위", "지원금액"], ["1분위", "240,000원"]]
+        → "소득분위 | 지원금액\n1분위 | 240,000원"
+    표를 통째로 한 줄로 붙이는 것보다 행 단위로 나눠야
+    청킹 후에도 각 행의 맥락(어느 열인지)이 유지된다.
+    """
+    rows = []
+    for row in table:
+        # None 셀은 빈 문자열로 치환, 셀 사이는 " | " 구분
+        rows.append(" | ".join(str(cell or "").strip() for cell in row))
+    return "\n".join(rows)
+
+
 def load_pdf(pdf_path: Path) -> list[Document]:
-    # 파일명에서 메타데이터(지역, 분류, 문서명) 추출
+    """pdfplumber로 PDF를 페이지 단위 Document 리스트로 변환.
+
+    PyPDFLoader 대비 개선점:
+    - 다단 편집 레이아웃의 텍스트 순서를 더 정확하게 복원
+    - 표(Table)를 별도로 추출해서 본문 뒤에 구조화된 형태로 추가
+      (표 셀이 뒤섞이는 문제 방지)
+    """
     meta = parse_filename(pdf_path.name)
+    pages = []
 
-    # LangChain의 PyPDFLoader: PDF를 페이지 단위 Document 리스트로 변환
-    loader = PyPDFLoader(str(pdf_path))
-    pages = loader.load()  # 각 페이지 = Document(page_content=텍스트, metadata={page:0, ...})
+    with pdfplumber.open(str(pdf_path)) as pdf:
+        for i, page in enumerate(pdf.pages):
+            # x_tolerance/y_tolerance: 같은 줄로 볼 글자 간격 허용치 (픽셀)
+            # 값이 너무 크면 다른 줄 텍스트가 합쳐지고, 너무 작으면 단어가 쪼개짐
+            text = page.extract_text(x_tolerance=3, y_tolerance=3) or ""
 
-    # 각 페이지의 metadata에 우리가 필요한 정보를 추가
-    for page in pages:
-        page.metadata.update(
-            {
-                "region": meta.region,           # 지역 (검색 필터로 사용 가능)
-                "category": meta.category,       # 정책 분류
-                "doc_name": meta.doc_name,       # 문서명
-                "source_file": pdf_path.name,    # 원본 파일명 (출처 표시용)
-            }
-        )
+            # 페이지 안의 표를 모두 찾아서 텍스트 뒤에 추가
+            # extract_tables()는 표를 행·열 리스트로 반환
+            tables = page.extract_tables()
+            if tables:
+                table_texts = [_table_to_text(t) for t in tables if t]
+                # 본문과 표 사이에 빈 줄을 두어 청킹 시 자연스럽게 분리되도록
+                text = text + "\n\n" + "\n\n".join(table_texts)
+
+            pages.append(Document(
+                page_content=text,
+                metadata={
+                    "region": meta.region,
+                    "category": meta.category,
+                    "doc_name": meta.doc_name,
+                    "source_file": pdf_path.name,
+                    "page": i,
+                },
+            ))
+
     return pages
 
 
