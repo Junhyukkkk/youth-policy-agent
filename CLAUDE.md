@@ -82,5 +82,9 @@ youth-policy-agent/
 - Starter (무료) 플랜 기준으로 설계
 - 인덱스 1개로 충분 (이름: `youth-policy-index`)
 - 리전: AWS us-east-1 (Starter 제한)
-- 임베딩 차원: Gemini `embedding-001` 사용 시 768차원
+- 임베딩 차원: `gemini-embedding-001` 사용 시 **3072차원** (768 아님)
+- PDF 파일명 규칙: `{region}_{category}_{docname}.pdf` — **반드시 ASCII 영문**
+  - Pinecone Vector ID가 ASCII만 허용하므로 한글 파일명 사용 불가
+  - 예: `national_finance_youth_hope_account_faq.pdf`
+  - region: national / seoul / busan 등, category: finance / housing / policy 등
 - 3주 비활성 시 인덱스 paused → 다시 호출하면 자동 깨어남

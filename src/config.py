@@ -6,6 +6,8 @@
 #       (직접 os.environ["KEY"] 를 쓰는 것보다 안전하고 타입 검증도 된다)
 # ============================================================
 
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,3 +33,8 @@ class Settings(BaseSettings):
 # 모듈 최상단에서 한 번만 인스턴스를 만든다.
 # 다른 파일에서는 "from src.config import settings" 로 임포트해서 바로 사용.
 settings = Settings()
+
+# pydantic-settings는 .env를 읽어 settings 객체에만 넣고 os.environ에는 설정하지 않는다.
+# langchain_pinecone 등 외부 라이브러리가 os.environ을 직접 읽으므로 여기서 동기화한다.
+os.environ.setdefault("PINECONE_API_KEY", settings.pinecone_api_key)
+os.environ.setdefault("GOOGLE_API_KEY", settings.google_api_key)

@@ -114,7 +114,7 @@ def rag_search(query: str) -> str:
     # 각 청크를 "[출처: 파일명, p.페이지]\n본문" 형식으로 포맷팅
     chunks: list[str] = []
     for doc in docs:
-        source = doc.metadata.get("source", "알 수 없음")
+        source = doc.metadata.get("source_file", "알 수 없음")
         page = doc.metadata.get("page", "")
         tag = f"[출처: {source}" + (f", p.{page}]" if page else "]")
         chunks.append(f"{tag}\n{doc.page_content}")

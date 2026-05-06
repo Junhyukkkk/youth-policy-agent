@@ -4,14 +4,20 @@
 # google-genai SDK는 v1 API를 사용하므로 이 문제가 없다.
 
 from google import genai
+from google.genai import types
 from langchain_core.embeddings import Embeddings
 
 from src.config import settings
 
 
 class GeminiEmbeddings(Embeddings):
-    def __init__(self, model: str = "text-embedding-004"):
-        self._client = genai.Client(api_key=settings.google_api_key)
+    def __init__(self, model: str = "gemini-embedding-001"):
+        # 이 API 키에서 사용 가능한 임베딩 모델: gemini-embedding-001 (3072차원)
+        # text-embedding-004는 이 키에서 지원 안 됨 (ListModels로 확인)
+        self._client = genai.Client(
+            api_key=settings.google_api_key,
+            http_options=types.HttpOptions(api_version="v1beta"),
+        )
         self._model = model
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:

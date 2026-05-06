@@ -5,7 +5,7 @@
 #   1. data/policies/ 폴더 안의 PDF 파일을 스캔
 #   2. 각 PDF를 페이지 단위로 읽고, 파일명에서 메타데이터(지역·분류) 추출
 #   3. 긴 텍스트를 1000자짜리 청크로 분할
-#   4. 각 청크를 Gemini 임베딩 모델로 768차원 벡터로 변환
+#   4. 각 청크를 Gemini 임베딩 모델로 3072차원 벡터로 변환
 #   5. Pinecone 인덱스에 저장 (upsert = 중복이면 덮어쓰기)
 #
 # 이 파일은 CLI의 "policy-agent ingest" 명령으로만 실행된다.
@@ -13,6 +13,7 @@
 # ============================================================
 
 import re
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import NamedTuple
@@ -35,14 +36,16 @@ console = Console()
 
 class FileMeta(NamedTuple):
     # PDF 파일명에서 뽑아낸 구조화된 메타데이터
-    # 예: "서울_주거_청년월세지원.pdf" → region="서울", category="주거", doc_name="청년월세지원"
+    # 예: "national_housing_youth_dream_subscription_guide.pdf"
+    #     → region="national", category="housing", doc_name="youth_dream_subscription_guide"
+    # 파일명은 반드시 ASCII 영문 (Pinecone Vector ID ASCII 제약)
     region: str
     category: str
     doc_name: str
 
 
 def parse_filename(filename: str) -> FileMeta:
-    """파일명 규칙 {지역}_{카테고리}_{문서명}.pdf 에서 메타데이터 파싱."""
+    """파일명 규칙 {region}_{category}_{docname}.pdf 에서 메타데이터 파싱. 파일명은 ASCII 영문 필수."""
     stem = Path(filename).stem         # ".pdf" 확장자 제거한 파일명
     parts = stem.split("_", 2)         # 최대 3덩어리로 분리 (언더스코어 기준)
     if len(parts) >= 3:
@@ -55,9 +58,9 @@ def parse_filename(filename: str) -> FileMeta:
 
 
 def _safe_id(text: str) -> str:
-    # Pinecone 벡터 ID에 특수문자가 들어가면 에러가 나므로
-    # 영숫자·하이픈·언더스코어 외의 문자를 언더스코어로 치환
-    return re.sub(r"[^\w\-]", "_", text)
+    # Pinecone 벡터 ID는 ASCII만 허용 — \w는 한글 등 유니코드도 통과시키므로
+    # [^a-zA-Z0-9\-]로 ASCII 영숫자·하이픈·언더스코어만 남긴다.
+    return re.sub(r"[^a-zA-Z0-9_\-]", "_", text)
 
 
 # ── PDF 로딩 ──────────────────────────────────────────────────────────
@@ -170,7 +173,15 @@ def ingest_directory(path: Path) -> tuple[int, int]:
             ids = _make_ids(chunks, stem)        # 각 청크의 고유 ID 생성
 
             # Pinecone에 저장: 청크 텍스트를 벡터로 변환 후 upsert
-            vectorstore.add_documents(chunks, ids=ids)
+            # 무료 플랜 Rate Limit(분당 요청 횟수 제한) 때문에 청크를 배치로 나눠서 저장
+            batch_size = 10
+            for i in range(0, len(chunks), batch_size):
+                batch_chunks = chunks[i:i + batch_size]
+                batch_ids = ids[i:i + batch_size]
+                vectorstore.add_documents(batch_chunks, ids=batch_ids)
+                # 배치 사이에 잠시 대기 → Gemini 임베딩 API Rate Limit 회피
+                if i + batch_size < len(chunks):
+                    time.sleep(2)
 
             total_docs += 1
             total_chunks += len(chunks)
